@@ -1,0 +1,492 @@
+openapi: 3.1.0
+info:
+  title: User Service API
+  version: 1.2.0
+  description: |
+    # 📘 User Service API v1.2
+
+    The **User Service API** provides endpoints for managing users, roles, and permissions within the LMS platform.
+
+    ## ✨ Features
+    - 👤 Manage user profiles (create, read, update, delete)
+    - 🧩 Retrieve and update user roles
+    - 🔐 Get user permissions for courses
+    - 🕵️ Track user activity logs with pagination and filters
+
+    ## 🔑 Authentication
+    All write operations (`POST`, `PATCH`, `DELETE`) typically require a **Bearer token**:
+    ```
+    Authorization: Bearer <access_token>
+    ```
+
+  contact:
+    name: User Service Team
+    url: https://matrix.mi.hdm-stuttgart.de/#/room/!YaIZIucBWNUjXzAojT:matrix.mi.hdm-stuttgart.de
+
+servers:
+  - url: http://localhost:3000
+    description: Development Server
+  - url: https://api.lms.example.com
+    description: Production Server
+
+tags:
+  - name: User Data
+    description: Operations related to user management.
+  - name: Permissions
+    description: Operations related to course access permissions.
+
+paths:
+  /api/user:
+    post:
+      tags: [User Data]
+      summary: Create a new user
+      description: Create a new user profile in the system.
+      parameters:
+        - $ref: "#/components/parameters/ApiVersion"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, first_name, last_name, email]
+              properties:
+                username:
+                  type: string
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [admin, instructor, student]
+                  default: student
+              example:
+                username: jdoe
+                first_name: John
+                last_name: Doe
+                email: john@example.com
+                role: student
+      responses:
+        "201":
+          description: User created successfully
+          headers:
+            X-User-Pseudo-ID:
+              $ref: "#/components/headers/XUserPseudoID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440000
+                username: jdoe
+                first_name: John
+                last_name: Doe
+                email: john@example.com
+                role: student
+        "400":
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                status: 400
+                error: Bad Request
+                message: Invalid email format.
+
+  /api/user/{user_uuid}:
+    get:
+      tags: [User Data]
+      summary: Get user profile
+      description: |
+        Retrieve the profile of a specific user.
+        By default, it returns the full user object. Use the `fields` query parameter to retrieve a subset of fields.
+      parameters:
+        - $ref: "#/components/parameters/ApiVersion"
+        - $ref: "#/components/parameters/UserUUID"
+        - name: filter
+          in: query
+          description: Comma-separated list of fields to retrieve (e.g., `username,email`). If not provided, all fields are returned.
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [id, username, first_name, last_name, email, role]
+          style: form
+          explode: false
+      responses:
+        "200":
+          description: User retrieved successfully
+          headers:
+            X-User-Pseudo-ID:
+              $ref: "#/components/headers/XUserPseudoID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              examples:
+                full_profile:
+                  summary: Full user profile
+                  value:
+                    id: 550e8400-e29b-41d4-a716-446655440000
+                    username: jdoe
+                    first_name: John
+                    last_name: Doe
+                    email: john@example.com
+                    role: student
+                partial_profile:
+                  summary: Partial user profile
+                  value:
+                    username: jdoe
+                    email: john@example.com
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                status: 404
+                error: Not Found
+                message: User not found.
+
+    patch:
+      tags: [User Data]
+      summary: Update user details
+      description: Update one or more fields of a user.
+      parameters:
+        - $ref: "#/components/parameters/ApiVersion"
+        - $ref: "#/components/parameters/UserUUID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/User"
+            example:
+              first_name: Jonathan
+              email: jonathan@example.com
+              role: instructor
+      responses:
+        "200":
+          description: User updated successfully
+          headers:
+            X-User-Pseudo-ID:
+              $ref: "#/components/headers/XUserPseudoID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440000
+                username: jdoe
+                first_name: Jonathan
+                last_name: Doe
+                email: jonathan@example.com
+                role: instructor
+        "400":
+          description: Invalid update data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                status: 400
+                error: Bad Request
+                message: Invalid email format.
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    delete:
+      tags: [User Data]
+      summary: Delete user
+      description: Permanently delete a user by UUID.
+      parameters:
+        - $ref: "#/components/parameters/ApiVersion"
+        - $ref: "#/components/parameters/UserUUID"
+      responses:
+        "204":
+          description: User deleted successfully
+          headers:
+            X-User-Pseudo-ID:
+              $ref: "#/components/headers/XUserPseudoID"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/user/{user_uuid}/permissions/{course_uuid}:
+    get:
+      tags: [Permissions]
+      summary: Get permissions for a course (multiple filters supported)
+      description: |
+        Retrieve all permission flags for a specific user-course pair, or one or more specific permissions if the 'filter' query parameter is used.
+      parameters:
+        - $ref: "#/components/parameters/ApiVersion"
+        - $ref: "#/components/parameters/UserUUID"
+        - $ref: "#/components/parameters/CourseUUID"
+        - name: filter
+          in: query
+          description: "Filter to retrieve one or more specific permissions. If omitted, all permissions are returned."
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+              enum: [view, edit, delete]
+          style: form
+          explode: false
+      responses:
+        "200":
+          description: Permissions retrieved. The response varies based on the 'filter' parameter.
+          headers:
+            X-User-Pseudo-ID:
+              $ref: "#/components/headers/XUserPseudoID"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionsResponse"
+              examples:
+                all_permissions:
+                  summary: All permissions
+                  value:
+                    user_id: 550e8400-e29b-41d4-a716-446655440000
+                    course_id: 760e8400-e29b-41d4-a716-446655440999
+                    permissions:
+                      can_view: true
+                      can_edit: false
+                      can_delete: false
+                view_permission:
+                  summary: View permission only
+                  value:
+                    user_id: 550e8400-e29b-41d4-a716-446655440000
+                    course_id: 760e8400-e29b-41d4-a716-446655440999
+                    permissions:
+                      can_view: true
+                edit_permission:
+                  summary: Edit permission only
+                  value:
+                    user_id: 550e8400-e29b-41d4-a716-446655440000
+                    course_id: 760e8400-e29b-41d4-a716-446655440999
+                    permissions:
+                      can_edit: false
+                view_and_edit_permissions:
+                  summary: View and Edit permissions
+                  value:
+                    user_id: 550e8400-e29b-41d4-a716-446655440000
+                    course_id: 760e8400-e29b-41d4-a716-446655440999
+                    permissions:
+                      can_view: true
+                      can_edit: false
+        "404":
+          description: User or course not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/user/{user_uuid}/activity:
+    get:
+      tags: [User Data]
+      summary: Get user activity log
+      description: Retrieve recent activity for a given user, with pagination and optional filtering by action type.
+      parameters:
+        - $ref: "#/components/parameters/ApiVersion"
+        - $ref: "#/components/parameters/UserUUID"
+        - name: limit
+          in: query
+          description: Number of activity entries to return (default 10, max 100)
+          required: false
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+        - name: offset
+          in: query
+          description: Pagination offset (default 0)
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: action
+          in: query
+          description: Filter by action type (e.g., LOGIN, ROLE_UPDATE, COURSE_ACCESS)
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Activity log retrieved successfully
+          headers:
+            X-User-Pseudo-ID:
+              $ref: "#/components/headers/XUserPseudoID"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ActivityLog"
+              example:
+                total: 3
+                limit: 10
+                offset: 0
+                data:
+                  - timestamp: "2025-11-01T10:45:00Z"
+                    action: "LOGIN"
+                    details: "User logged into the LMS"
+                  - timestamp: "2025-11-02T14:30:00Z"
+                    action: "ROLE_UPDATE"
+                    details: "Role changed from student to instructor"
+                  - timestamp: "2025-11-03T09:00:00Z"
+                    action: "COURSE_ACCESS"
+                    details: "Viewed course: Intro to APIs"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  parameters:
+    ApiVersion:
+      name: X-Api-Version
+      in: header
+      required: true
+      description: Specifies the API version to use.
+      schema:
+        type: string
+        default: '0.1'
+    UserUUID:
+      name: user_uuid
+      in: path
+      required: true
+      description: Unique identifier of the user
+      schema:
+        type: string
+        format: uuid
+    CourseUUID:
+      name: course_uuid
+      in: path
+      required: true
+      description: Unique identifier of the course
+      schema:
+        type: string
+        format: uuid
+
+  headers:
+    XUserPseudoID:
+      description: A pseudo-identifier for the user returned with each response.
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 550e8400-e29b-41d4-a716-446655440000
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [admin, instructor, student]
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440000
+        username: jdoe
+        first_name: John
+        last_name: Doe
+        email: john@example.com
+        role: student
+
+    PermissionsResponse:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        course_id:
+          type: string
+          format: uuid
+        permissions:
+          type: object
+          properties:
+            can_view:
+              type: boolean
+            can_edit:
+              type: boolean
+            can_delete:
+              type: boolean
+      example:
+        user_id: 550e8400-e29b-41d4-a716-446655440000
+        course_id: 760e8400-e29b-41d4-a716-446655440999
+        permissions:
+          can_view: true
+          can_edit: false
+          can_delete: false
+
+    ActivityLog:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        action:
+          type: string
+          description: Type of activity performed.
+        details:
+          type: string
+          description: Additional information about the action.
+      example:
+        timestamp: "2025-11-03T09:00:00Z"
+        action: "COURSE_ACCESS"
+        details: "Viewed course: Intro to APIs"
+
+    Error:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 404
+        error:
+          type: string
+          example: Not Found
+        message:
+          type: string
+          example: The requested resource was not found.
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-11-09T10:30:00Z"
+
