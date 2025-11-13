@@ -1,0 +1,22 @@
+{
+  "name": "claudecodeweb",
+  "version": "1.0.0",
+  "description": "User Service API Mock Server",
+  "scripts": {
+    "mock": "prism mock OpenAPI.yaml",
+    "mock:port": "prism mock OpenAPI.yaml --port 3000",
+    "mock:dynamic": "prism mock OpenAPI.yaml --dynamic",
+    "mock:validate": "prism mock OpenAPI.yaml --validate"
+  },
+  "keywords": [
+    "openapi",
+    "mock-server",
+    "prism",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@stoplight/prism-cli": "^5.9.1"
+  }
+}
